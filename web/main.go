@@ -1,24 +1,38 @@
 package main
 
+/**
+
+ */
 import (
-	"github.com/jsxz/xslt-platform/web/controller"
 	"github.com/kataras/iris"
-	"github.com/kataras/iris/middleware/logger"
-	"github.com/kataras/iris/middleware/recover"
+	"github.com/kataras/iris/context"
 	"github.com/kataras/iris/mvc"
+	"xslt-platform/web/controllers"
 )
 
 func newApp() *iris.Application {
-	app := iris.New()
+	app := iris.Default()
+	//app.Logger().SetLevel("debug")
+	tmpl := iris.HTML("./views", ".html").
+		Layout("shared/layout.html").
+		Reload(true)
+	app.RegisterView(tmpl)
+	app.Any("/test", func(c context.Context) {
+		c.WriteString("test")
+	})
+	app.Use(func(ctx iris.Context) {
+		ctx.Application().Logger().Infof("Path: %s", ctx.Path())
+		ctx.Next()
+	})
+	mvc.New(app.Party("/admin")).Handle(new(controllers.AdminController))
+	mvc.New(app).Handle(new(controllers.HomeController))
 
-	// Optionally, add two builtin handlers
-	// that can recover from any http-relative panics
-	// and log the requests to the terminal.
-	app.Use(recover.New())
-	app.Use(logger.New())
-
-	// Serve a controller based on the root Router, "/".
-	mvc.New(app).Handle(new(controller.HomeController))
+	app.OnAnyErrorCode(func(ctx iris.Context) {
+		ctx.ViewData("Message", ctx.Values().
+			GetStringDefault("message", "The page you're looking for doesn't exist"))
+		ctx.View("shared/error.html")
+	})
+	app.StaticWeb("/public", "./public")
 	return app
 }
 
